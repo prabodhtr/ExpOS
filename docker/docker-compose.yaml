@@ -1,0 +1,8 @@
+services:
+  expos:
+    image: expos:ubuntu20.04
+    privileged: true
+    tty: true
+    stdin_open: true
+    volumes:
+      - ../workdir:/home/expos/myexpos/workdir
