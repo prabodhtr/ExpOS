@@ -26,6 +26,6 @@
 - load os startup code to disk
   - load --os <path>
 - run xsm in debug mode
-  - ./xsm -debug --timer 0
-- R1 register holds square of numbers upto 5 at each breakpoint
+  - ./xsm --debug --timer 0
+- R1 register holds cube of numbers upto 5 at each breakpoint
 
