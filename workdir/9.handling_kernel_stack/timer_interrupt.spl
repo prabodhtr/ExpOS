@@ -1,0 +1,15 @@
+//get PID of currently running process. Each process table is 16 in size. Hence multiplying with PID will give starting of each process table
+//store user SP value to UPTR field, 13th word in each process table
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+
+// Setting SP to User Area Page number * 512 - 1 (User Area Page Number is 11th word in each process table)
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+backup;
+print "PID";
+print [SYSTEM_STATUS_TABLE + 1];
+restore;
+
+// set SP back to UPTR value
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+ireturn;
