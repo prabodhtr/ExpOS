@@ -1,0 +1,34 @@
+// load init program from disk to specific memory
+loadi(65,7);
+loadi(66,8);
+
+// Load the INT10 module from the disk to the memory.
+loadi(22,35);
+loadi(23,36);
+
+// Load the exception handler routine from the disk to the memory.
+loadi(2, 15);
+loadi(3, 16);
+
+// PAGE_TABLE_BASE holds the value 29696. Default start of PTBR
+// Assume 4th and 5th pages for init code and 8th page for init stack
+PTBR = PAGE_TABLE_BASE;
+PTLR = 10;
+
+// populate page table entries. 2 words for each logical page
+// map 4th page to init memory page and valid bit to 1
+[PTBR+8] = 65;
+[PTBR+9] = "0100";
+// map 5th page to init memory page and valid bit to 1
+[PTBR+10] = 66;
+[PTBR+11] = "0100";
+// map 8th page to some memory page for stack and valid and write bit to 1
+[PTBR+16] = 76;
+[PTBR+17] = "0110";
+
+// push logical starting location of code(4*512) to SP's starting physical address and set SP to logical start of stack
+[76*512] = 2048;
+SP = 8*512;
+
+// ireturn will change to user mode, push value at top of stack(after translation) to IP and decrement stack(popping)
+ireturn;
