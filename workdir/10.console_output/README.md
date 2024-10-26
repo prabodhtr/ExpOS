@@ -14,9 +14,9 @@
 ## Steps
 
 - run batch_compile to generate compile spl files
-  - batch_compile.sh <absolute_path_to_stage>
+  - batch-compile.sh <stage number>
 - format and load files to disk in bulk
-  - run <path to batch_loader script>
+  - load-disk.sh <stage number>
 - start xsm
-  - ./xsm --debug --timer 0
+  - start-xsm.sh debug timer 10
 
