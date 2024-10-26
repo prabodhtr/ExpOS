@@ -11,6 +11,6 @@ RUN cd /home/expos \
     && cd /home/expos/myexpos \
     && make
 
-ENV PATH="$PATH:/home/expos/myexpos/xsm"
+ENV PATH="$PATH:/home/expos/myexpos/xsm:/home/expos/myexpos/workdir/utils"
 
 WORKDIR /home/expos/myexpos

@@ -1,0 +1,9 @@
+fdisk
+load --library /home/expos/myexpos/expl/library.lib
+load --init $HOME/myexpos/workdir/10.console_output/init.xsm
+load --os $HOME/myexpos/workdir/10.console_output/os_startup.xsm
+load --int=10 $HOME/myexpos/workdir/10.console_output/halt.xsm
+load --exhandler $HOME/myexpos/workdir/10.console_output/halt.xsm
+load --int=timer $HOME/myexpos/workdir/10.console_output/timer_interrupt.xsm
+load --int=console $HOME/myexpos/workdir/10.console_output/console_interrupt.xsm
+load --int=7 $HOME/myexpos/workdir/10.console_output/console_interrupt.xsm
