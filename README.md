@@ -22,5 +22,7 @@ for more details.
   _xfs-interface_ application is always invoked from within the `xfs-interface` directory (and hence the disk.xfs would be created/updated within the same)
   
   Hence, make sure to perform the `fdisk` and `load` operations of xfs-interface from within the `xfs-interace` directory
-
 - While writing assembly files (.xsm files), make sure to add an extra line at the end as `xfs-interface` on loading files, trims the last line
+- Implementation plan in this road map is to store the process table entry for the process with ID=0 in the 16 words starting at memory address PROCESS_TABLE, the process table entry for process with PID=1 in 16 words starting at memory address PROCESS_TABLE+16 and so on
+- Similarly, the page table for the process with PID=0 will be stored in 20 words starting at address PAGE_TABLE_BASE, page table for PID=1 will start at PAGE_TABLE_BASE+20 and so on
+- One should NOT use alias/registers(R0-R15) inside interrupt programs before user-context has been backed up!
