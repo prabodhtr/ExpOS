@@ -17,5 +17,5 @@ perl -pe "s|__CURR_DIR__|/home/expos/myexpos/workdir/$dir_name|g" "/home/expos/m
 cat enriched_loader
 
 echo -e "\n\nRunning enriched_loader...\n"
-printf "run /home/expos/myexpos/workdir/$dir_name/enriched_loader\nexit" | ./xfs-interface
+printf "run ./enriched_loader\nexit" | ./xfs-interface
 cd "$cur_dir" || exit

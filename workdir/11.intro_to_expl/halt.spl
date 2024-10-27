@@ -1,0 +1,2 @@
+// halt command to be loaded onto memory and invoked on INT 10 call
+halt;

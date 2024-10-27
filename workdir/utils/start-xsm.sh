@@ -2,7 +2,7 @@
 cd /home/expos/myexpos/xsm || exit 1
 
 if [ -z "$1" ]; then
-    ./xsm
+    ./xsm --timer 0
 elif [ "$1" == "debug" ]; then
     if [ "$2" == "timer" ]; then
       ./xsm --debug --timer $3
