@@ -2,17 +2,25 @@
 cur_dir=$(pwd);
 cd /home/expos/myexpos/xfs-interface || exit
 stage=$1
+relative_dir=$2
 
 if [ -z "$stage" ]
   then
-    echo "Please provide the stage whose batch_loader needs to get executed!"
+    echo "Please provide the stage whose xfs-loader-script needs to get executed!"
     exit 1
 fi
 
 dir_name=$(ls /home/expos/myexpos/workdir | grep "$stage.*")
 
-echo -e "\nEnriching batch_loader of /home/expos/myexpos/workdir/$dir_name"
-perl -pe "s|__CURR_DIR__|/home/expos/myexpos/workdir/$dir_name|g" "/home/expos/myexpos/workdir/$dir_name/batch_loader" > enriched_loader
+if [ -z "$relative_dir" ]
+  then
+    xfs_loader_script_dir="/home/expos/myexpos/workdir/${dir_name}";
+  else
+    xfs_loader_script_dir="/home/expos/myexpos/workdir/${dir_name}/$relative_dir";
+fi
+
+echo -e "\nEnriching xfs-loader-script of $xfs_loader_script_dir"
+perl -pe "s|__CURR_DIR__|/home/expos/myexpos/workdir/${dir_name}|g" "$xfs_loader_script_dir/xfs-loader-script" > enriched_loader
 
 cat enriched_loader
 

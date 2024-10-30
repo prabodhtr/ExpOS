@@ -1,0 +1,66 @@
+// switch from user stack to kernel stack
+// 1. store user SP to UPTR
+// 2. set SP to start of kernel stack (User Area Page Num * 512 - 1)
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1] * 16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1] * 16) + 11] * 512 - 1;
+
+// backup registers ( should be done after switch to kernel stack)
+backup;
+
+// should not use registers before backing up as it has contents of user program
+
+//get PID of currently running process
+alias currentPID R15;
+currentPID = [SYSTEM_STATUS_TABLE+1];
+
+// Each process table is 16 in size. Hence multiplying with PID will give starting of each process table
+alias process_table_entry R14;
+process_table_entry = PROCESS_TABLE + (currentPID * 16);
+
+//save KTPR (User Area Page Num % 512)
+[process_table_entry + 12] = SP % 512;
+//save PTBR and PTLR of current process
+[process_table_entry + 14] = PTBR;
+[process_table_entry + 15] = PTLR;
+// update process status to READY
+[process_table_entry + 4] = "READY";
+
+// simple RR scheduler
+alias newPID R2;
+if(currentPID == 3) then
+	newPID = 0;
+else
+	newPID = currentPID + 1;
+endif;
+
+//Restore the SP, PTBR and PTLR values from the Process Table entry for the new process
+alias new_process_table R13;
+new_process_table = PROCESS_TABLE + (newPID * 16);
+
+//Set back Kernel SP, PTBR , PTLR to that of new process
+SP =  [new_process_table + 11] * 512 + [new_process_table + 12] ;
+PTBR = [new_process_table + 14];
+PTLR = [new_process_table + 15];
+
+// update PID of running process in system status table
+[SYSTEM_STATUS_TABLE + 1] = newPID;
+
+if([new_process_table + 4] == "CREATED") then
+	// the process has been scheduled for first time. So no user-context(registers) has been backed up
+	[new_process_table + 4] = "RUNNING";
+	// switch to user stack
+	SP = [new_process_table + 13];
+	ireturn;
+endif;
+
+// update state of newly scheduled process to RUNNING
+[new_process_table + 4] = "RUNNING";
+
+// restore backed up registers from newly scheduled process's kernel stack
+restore;
+
+// switch from kernel stack back to user stack
+// 1. set SP back to userSP stored in UPTR of newly scheduled process
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+
+ireturn;

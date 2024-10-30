@@ -1,0 +1,13 @@
+fdisk
+load --library /home/expos/myexpos/expl/library.lib
+load --init __CURR_DIR__/assignment/init.xsm
+load --idle __CURR_DIR__/idle.xsm
+load --os __CURR_DIR__/os_startup.xsm
+load --int=10 __CURR_DIR__/halt.xsm
+load --exhandler __CURR_DIR__/halt.xsm
+load --int=timer __CURR_DIR__/assignment/timer_interrupt.xsm
+load --int=console __CURR_DIR__/console_interrupt.xsm
+load --int=7 __CURR_DIR__/console_interrupt.xsm
+load --module 7 __CURR_DIR__/assignment/boot-module.xsm
+load --exec __CURR_DIR__/assignment/odd.xsm
+load --exec __CURR_DIR__/assignment/even.xsm

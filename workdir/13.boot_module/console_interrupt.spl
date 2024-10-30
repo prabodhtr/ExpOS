@@ -1,0 +1,47 @@
+// set the mode flag of process table for the first process
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 5;
+
+alias userSP R0;
+userSP = SP;
+
+//get PID of currently running process. Each process table is 16 in size. Hence multiplying with PID will give starting of each process table
+//store user SP value to UPTR field, 13th word in each process table
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+
+// Setting SP to User Area Page number * 512 - 1 (User Area Page Number is 11th word in each process table)
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+// get 'physical address' of argument 1 (userSP-4) to get the file descriptor set by user program
+alias physicalPageNum R1;
+alias offset R2;
+alias fileDescPhysicalAddr R3;
+physicalPageNum = [PTBR + 2 * ((userSP - 4)/ 512)];
+offset = (userSP - 4) % 512;
+fileDescPhysicalAddr = (physicalPageNum * 512) + offset;
+alias fileDescriptor R4;
+fileDescriptor=[fileDescPhysicalAddr];
+
+if (fileDescriptor != -2)
+then
+	// if fileDescriptor is invalid, return -1
+	alias physicalAddrRetVal R5;
+	physicalAddrRetVal = ([PTBR + 2 * ((userSP - 1) / 512)] * 512) + ((userSP - 1) % 512);
+	[physicalAddrRetVal] = -1;
+else
+	 alias word R5;
+     word = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + ((userSP - 3) % 512)];
+     print word;
+     alias physicalAddrRetVal R6;
+     physicalAddrRetVal = ([PTBR + 2 * (userSP - 1)/ 512] * 512) + ((userSP - 1) % 512);
+     [physicalAddrRetVal] = 0;
+endif;
+
+// no need to backup registers as console interrupt is invoked by program and kernel expects program to have it backed up
+
+// set SP back to user stack pointer value
+SP = userSP;
+
+// set mode flag back to 0
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+
+ireturn;
