@@ -1,0 +1,3 @@
+fdisk
+load --library /home/expos/myexpos/expl/library.lib
+load --os __CURR_DIR__/os-startup.xsm

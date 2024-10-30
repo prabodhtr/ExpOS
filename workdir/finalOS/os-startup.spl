@@ -1,0 +1,73 @@
+// load os boot module
+loadi(54,67);
+loadi(55,68);
+
+// load idle program from disk to memory
+loadi(69,11);
+loadi(70,12);
+
+// set SP to kernel stack of idle process before calling boot module. User Area Page Number of idle is set to 82 by convention
+SP = (82 * 512) - 1;
+
+// call boot module
+call BOOT_MODULE;
+
+// initialize page table for idle process
+// PAGE_TABLE_BASE holds the value 29696. Default start of PTBR
+PTBR=PAGE_TABLE_BASE;  //as PID of idle process is 0
+PTLR = 10;
+
+//Library -> page 0 and 1
+[PTBR+0] = 63;
+[PTBR+1] = "0100";
+[PTBR+2] = 64;
+[PTBR+3] = "0100";
+
+//Heap
+[PTBR+4] = -1;
+[PTBR+5] = "0000";
+[PTBR+6] = -1;
+[PTBR+7] = "0000";
+
+//Code
+[PTBR+8] = 69;
+[PTBR+9] = "0100";
+[PTBR+10] = 70;
+[PTBR+11] = "0100";
+[PTBR+12] = -1;
+[PTBR+13] = "0000";
+[PTBR+14] = -1;
+[PTBR+15] = "0000";
+
+//Stack
+[PTBR+16] = 81;
+[PTBR+17] = "0110";
+[PTBR+18] = -1;
+[PTBR+19] = "0000";
+
+// assign PID as 0 for the idle process table entry
+[PROCESS_TABLE + 1] = 0;
+// set state of idle process to RUNNING as its scheduled first than init
+[PROCESS_TABLE + 4] = "RUNNING";
+// set the user area page for init code. 11th word stores the physical user area page num
+[PROCESS_TABLE + 11] = 82;
+// set the KPTR to 0. Kernel stack is always cleared after returning to user mode. So offset is always 0 at the start
+[PROCESS_TABLE + 12] = 0;
+// set the UPTR to logical address of idle process stack page. Shouldn't it be done by kernel process?
+[PROCESS_TABLE + 13] = 8*512;
+// set PTBR field
+[PROCESS_TABLE + 14] = PAGE_TABLE_BASE;
+// set PTLR field
+[PROCESS_TABLE + 15] = 10;
+
+// set currently running PID to that of idle process (0)
+[SYSTEM_STATUS_TABLE + 1] = 0;
+
+// push location of first instruction to process stack location(following xexe format). Use physical address as os code is run in privileged mode
+[81 *512] = [(69 * 512) + 1];
+
+// set SP to start of logical page of init process's stack as its run first.
+SP = 8*512;
+
+// ireturn will change to user mode, push value at top of stack(after translation) to IP and decrement stack(popping)
+ireturn;
