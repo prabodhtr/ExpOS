@@ -1,0 +1,64 @@
+alias output R0;
+alias functionNum R1;
+alias currentPID R2;
+alias word R3;
+
+// terminal write
+if(functionNum == 3) then
+
+	// 1.Acquire the terminal
+	multipush(R1, R2, R3);
+	// store function number of acquire terminal fn of resource manager and pid in R1, and R2
+	functionNum = 8;
+	// call acquire terminal function of resource manager
+	call MOD_0;
+	multipop(R1, R2, R3);
+
+	// 2.Print
+	print word;
+
+	// 3.Release the terminal
+	multipush(R1, R2, R3);
+	// store function number of release terminal fn of resource manager and pid in R1, and R2
+	functionNum = 9;
+	call MOD_0;
+	alias returnVal R4;
+	returnVal = output;
+	multipop(R1, R2, R3);
+
+	return;
+endif;
+
+if(functionNum == 4) then
+	// 1.Acquire the terminal
+	multipush(R1, R2, R3);
+	// store function number of acquire terminal fn of resource manager and pid in R1, and R2
+	functionNum = 8;
+	// call acquire terminal function of resource manager
+	call MOD_0;
+	multipop(R1, R2, R3);
+
+	//2.read from terminal
+	read;
+
+	//3.Change the state of the current process to WAIT_TERMINAL
+	[PROCESS_TABLE + (currentPID * PT_ENTRY_SIZE) + 4] = "WAIT_TERMINAL";
+
+	multipush(R1, R2, R3);
+	//call scheduler to schedule other process
+	call MOD_5;
+	//continue execution once scheduler schedules this process again after input is received from console and console interrupt updates the status to READY
+	multipop(R1, R2, R3);
+
+	// The logical address of the word where the data has to be stored is in R3. Convert this logical address to physical address.
+	alias wordPhysical R4;
+	wordPhysical = [PTBR + (2 * (word / 512))] * 512 + (word % 512);
+	//Store the value present in input buffer field of process table to the obtained physical address of the word.
+	[wordPhysical] = [PROCESS_TABLE + (currentPID * PT_ENTRY_SIZE) + 8];
+
+	//terminal would be released by console interrupt once its invoked on receiving the input
+	return;
+endif;
+
+return;
+

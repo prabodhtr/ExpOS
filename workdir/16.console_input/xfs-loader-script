@@ -1,0 +1,15 @@
+fdisk
+load --os __CURR_DIR__/../finalOS/os-startup.xsm
+load --exhandler __CURR_DIR__/../finalOS/halt.xsm
+load --int=timer __CURR_DIR__/timer-interrupt.xsm
+load --int=console __CURR_DIR__/console-interrupt.xsm
+load --int=6 __CURR_DIR__/read-interrupt.xsm
+load --int=7 __CURR_DIR__/write-interrupt.xsm
+load --int=10 __CURR_DIR__/../finalOS/halt.xsm
+load --module 0 __CURR_DIR__/resource-manager-module.xsm
+load --module 4 __CURR_DIR__/device-manager-module.xsm
+load --module 5 __CURR_DIR__/scheduler-module.xsm
+load --module 7 __CURR_DIR__/boot-module.xsm
+load --library /home/expos/myexpos/expl/library.lib
+load --init __CURR_DIR__/init.xsm
+load --idle __CURR_DIR__/idle.xsm

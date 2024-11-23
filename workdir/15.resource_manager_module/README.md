@@ -8,6 +8,10 @@
 
 ## Reference
 
+![terminal_write_workflow.png](https://exposnitc.github.io/img/roadmap/write.png)
+
+_sourced from eXpOSNITC for reference_
+
 ## Points to note
 
 ## Steps
@@ -21,8 +25,3 @@
   - start-xsm.sh timer 1000
 
 ## Assignment
-
-
-![terminal_read_workflow.png](https://exposnitc.github.io/img/roadmap/write.png)
-
-_sourced from eXpOSNITC only for reference_
