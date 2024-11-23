@@ -1,0 +1,32 @@
+alias output R0;
+alias functionNum R1;
+alias currentPID R2;
+alias word R3;
+
+if(functionNum == 3) then
+
+	// 1.Acquire the terminal
+	multipush(R1, R2, R3);
+	// store function number of acquire terminal fn of resource manager and pid in R1, and R2
+	functionNum = 8;
+	// call acquire terminal function of resource manager
+	call MOD_0;
+	multipop(R1, R2, R3);
+
+	// 2.Print
+	print word;
+
+	// 3.Release the terminal
+	multipush(R1, R2, R3);
+	// store function number of release terminal fn of resource manager and pid in R1, and R2
+	functionNum = 9;
+	call MOD_0;
+	alias returnVal R4;
+	returnVal = output;
+	multipop(R1, R2, R3);
+
+	return;
+endif;
+
+return;
+
