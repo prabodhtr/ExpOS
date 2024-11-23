@@ -15,9 +15,9 @@
 ## Steps
 
 - run batch_compile to generate compile spl and expl files
-  - batch-compile.sh <stage number>
+  - batch-compile.sh 13
 - format and load files to disk in bulk
-  - load-disk.sh <stage number>
+  - load-disk.sh 13
 - start xsm
   - start-xsm.sh timer 10
 

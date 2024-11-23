@@ -1,0 +1,27 @@
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE+1];
+[PROCESS_TABLE + (currentPID * 16) + 4] = "TERMINATED";
+
+alias pid R3;
+alias pstatus R4;
+pid = (currentPID + 1) % MAX_PROC_NUM;
+while(pid != currentPID) do
+	pstatus = [(PROCESS_TABLE + (pid * PT_ENTRY_SIZE)) + 4];
+	if(pid == 0) then
+		pid = 1;
+		continue;
+	endif;
+
+	if(pstatus != "TERMINATED") then
+		break;
+	else
+		pid = (pid + 1) % MAX_PROC_NUM;
+	endif;
+endwhile;
+
+// halt command to be loaded onto memory and invoked on INT 10 call
+if(pid == currentPID) then
+	halt;
+else
+	call MOD_5;
+endif;

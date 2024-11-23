@@ -1,0 +1,38 @@
+// switch from user stack to kernel stack
+// 1. store user SP to UPTR
+// 2. set SP to start of kernel stack (User Area Page Num * 512 - 1)
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1] * 16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1] * 16) + 11] * 512 - 1;
+
+// backup registers ( should be done after switch to kernel stack)
+backup;
+
+// should not use registers before backing up as it has contents of user program
+
+// update current process status to READY
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1] * 16) + 4] = "READY";
+
+// increase tick of all processes
+alias pid R0;
+alias ptentry R1;
+pid = 0;
+while(pid <= MAX_PROC_NUM) do
+	ptentry = PROCESS_TABLE + (pid * PT_ENTRY_SIZE);
+    [ptentry + 0] = [ptentry + 0] + 1;
+  pid = pid + 1;
+endwhile;
+
+// call scheduler module
+call MOD_5;
+
+// restore backed up registers from newly scheduled process's kernel stack
+restore;
+
+// switch from kernel stack back to user stack
+// 1. set SP back to userSP stored in UPTR of newly scheduled process
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+
+//Set the MODE_FLAG in the process table entry to 0.
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+
+ireturn;
