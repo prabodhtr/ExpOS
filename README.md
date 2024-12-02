@@ -26,3 +26,8 @@ for more details.
 - Implementation plan in this road map is to store the process table entry for the process with ID=0 in the 16 words starting at memory address PROCESS_TABLE, the process table entry for process with PID=1 in 16 words starting at memory address PROCESS_TABLE+16 and so on
 - Similarly, the page table for the process with PID=0 will be stored in 20 words starting at address PAGE_TABLE_BASE, page table for PID=1 will start at PAGE_TABLE_BASE+20 and so on
 - One should NOT use alias/registers(R0-R15) inside interrupt programs before user-context has been backed up!
+
+- _console, timer and disk_ interrupts are the hardware interrupts while interrupts 4-18 like exec, read, write, create are software interrupts
+- XSM machine disables interrupts when executing in the kernel mode. Hence, the hardware can raise an interrupt only when the machine is executing in the user mode. 
+  Hence, the OS has to schedule "some process" even if all processes are waiting for disk/terminal interrupt - for otherwise, the device concerned will never be able to interrupt the processor. 
+  The IDLE process is precisely designed to take care of this and other similar situations. 

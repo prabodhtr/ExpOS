@@ -1,0 +1,71 @@
+// set the mode flag of process table to that of read system call
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 7;
+
+alias userSP R10;
+userSP=SP;
+
+// store UPTR
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+
+// switch to kernel stack
+SP = [PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+// get 'physical address' of argument 1 (userSP-4) to get the file descriptor set by user program
+// fileDescriptor = valueAt([ ptbr + 2 * logicalPage ] * 512 + offset)
+
+alias fileDescriptor R0;
+fileDescriptor = [[PTBR + (2 * ((userSP - 4) / 512))] * 512 + ((userSP - 4) % 512)];
+
+// file descriptor should be -1 for terminal read
+if (fileDescriptor != -1)
+then
+	// if fileDescriptor is invalid, return -1
+	[[PTBR + (2 * ((userSP - 1) / 512))] * 512 + ((userSP - 1) % 512)] = -1;
+else
+	// retrieve input address
+    alias inputBuffer R3;
+	inputBuffer = [[PTBR + (2 * ((userSP - 3) / 512))] * 512 + ((userSP - 3) % 512)];
+
+	// call device manager module for Terminal Read. R1, R2 and R3 should have input args
+    multipush(R0, R1, R2, R3, R10);
+    alias functionNum R1;
+    alias pid R2;
+	functionNum = 4;
+	pid = [SYSTEM_STATUS_TABLE + 1];
+
+	call MOD_4;
+
+    multipop(R0, R1, R2, R3, R10);
+
+    // return 0 to user application via stack
+    [[PTBR + (2 * ((userSP - 1) / 512))] * 512 + ((userSP - 1) % 512)] = 0;
+endif;
+
+// reset MOD_FLAG
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+
+// revert SP to UPTR
+SP = [PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+ireturn;
+
+
+
+// custom function that takes a logical address and returns physical address for the current process
+// logical address stored in R1
+// physical address returned in R0
+// caller expected to backup registers before invoking function
+getPhysicalAddress:
+
+alias physicalAddr R0;
+alias logicalAddr R1;
+alias physicalPageNum R2;
+alias logicalPageNum R3;
+alias offset R4;
+
+logicalPageNum = logicalAddr / 512;
+offset = logicalAddr % 512;
+
+physicalPageNum = [PTBR + (2 * logicalPageNum)];
+physicalAddr = (physicalPageNum * 512) + offset;
+
+return;

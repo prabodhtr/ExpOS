@@ -1,0 +1,72 @@
+alias output R0;
+alias functionNum R1;
+alias arg1 R2;
+alias arg2 R3;
+
+// get free page
+if(functionNum == 1) then
+
+	alias pid R4;
+ 	pid = [SYSTEM_STATUS_TABLE + 1];
+
+	// increment wait mem count (not in busy loop as its not decremented automatically on memory release)
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] + 1;
+
+	// when mem free count is 0
+	while([SYSTEM_STATUS_TABLE + 2] == 0) do
+
+		// update state of invoked process
+		[PROCESS_TABLE + (pid * PT_ENTRY_SIZE) + 4] = "WAIT_MEM";
+
+		// schedule other process
+		multipush(R1, R2, R3, R4);
+		call MOD_5;
+		multipop(R1, R2, R3, R4);
+	endwhile;
+
+	// executed when process is scheduled again after its state is updated by interrupt denoting free available memory
+	// Decrement the WAIT_MEM_COUNT field and MEM_FREE_COUNT
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] - 1;
+	[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+	// get free page starting from 76 ( user allowed paged are from 76 - 127 )
+	alias counter R5;
+	counter = 76;
+	while(counter < MAX_MEM_PAGE) do
+		 if([MEMORY_FREE_LIST + counter] == 0) then
+			[MEMORY_FREE_LIST + counter] = 1;
+			output = counter;
+			break;
+		 endif;
+		 counter = counter + 1;
+	endwhile;
+
+	return;
+endif;
+
+// release page
+if(functionNum == 2) then
+
+	// decrement value of page in mem free list
+	if([MEMORY_FREE_LIST + arg1] != 0) then
+		[MEMORY_FREE_LIST + arg1] = [MEMORY_FREE_LIST + arg1] - 1;
+	endif;
+
+	// update mem free count if page is free
+	if([MEMORY_FREE_LIST + arg1] == 0) then
+		[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] + 1;
+
+		//Update the STATE to READY for all processes (with valid PID) which have STATE as WAIT_MEM
+		alias pid R4;
+		alias ptentry R5;
+		pid = 1;
+		while(pid <= MAX_PROC_NUM) do
+			ptentry = PROCESS_TABLE + (pid * PT_ENTRY_SIZE);
+			if([ptentry + 4] == "WAIT_MEM") then
+				[ptentry + 4] = "READY";
+			endif;
+		  pid = pid + 1;
+		endwhile;
+	endif;
+	return;
+endif;
