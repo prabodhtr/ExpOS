@@ -1,4 +1,5 @@
 define MAX_FILE_PAGE 4;
+define DISK_MAP_ENTRY_SIZE 10;
 
 // executed from application. So app is expected to backup registers
 alias userSP R5;
@@ -13,7 +14,6 @@ SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1] * PT_ENTRY_SIZE) + 11] * 512 - 1;
 
 // get 'physical address' of argument 1 (userSP-4) to get the exec file name
 // filename = valueAt([ ptbr + 2 * logicalPage ] * 512 + offset)
-
 alias fileName R6;
 fileName = [[PTBR + (2 * (userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
 
@@ -36,6 +36,7 @@ if(counter == MAX_FILE_NUM) then
 	// file not found
 	[[PTBR + (2 * ((userSP - 1) / 512))] * 512 + ((userSP - 1) % 512)] = -1;
 	[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * PT_ENTRY_SIZE) + 9] = 0;
+	SP = userSP;
 	ireturn;
 endif;
 
@@ -87,25 +88,21 @@ PTBR = [PROCESS_TABLE + ( pid * PT_ENTRY_SIZE ) + 14];
 [PTBR+2] = 64;
 [PTBR+3] = "0100";
 
-// get 2 stack and 2 heap from get free page fn
+// heap will be obtained dynamically on page fault
+
+//Heap -> page 2
+[PTBR+4] = -1;
+[PTBR+5] = "0000";
+
+//Heap -> page 3
+[PTBR+6] = -1;
+[PTBR+7] = "0000";
+
 alias freePage R9;
 functionNum = 1;
 
+// allocate 2 stack pages greedily
 multipush(R1, R2, R5, R6, R7, R8, R9);
-call MOD_2;
-freePage = R0;
-
-//Heap -> page 2
-[PTBR+4] = freePage;
-[PTBR+5] = "0110";
-
-call MOD_2;
-freePage = R0;
-
-//Heap -> page 3
-[PTBR+6] = freePage;
-[PTBR+7] = "0110";
-
 call MOD_2;
 freePage = R0;
 
@@ -122,36 +119,52 @@ freePage = R0;
 
 multipop(R1, R2, R5, R6, R7, R8, R9);
 
-// code -> page 8,9,10,11
-alias counter R10;
-alias diskBlock R11;
+// load only the first code block. Rest are invalidated and will be loaded lazily
+alias diskBlock R10;
+diskBlock = [inode_entry + 8 + 0];
+if(diskBlock != -1) then
+	multipush(R1, R2, R5, R6, R7, R8, R9, R10);
+	alias arg1 R2;
+	functionNum = 5;
+	arg1 = diskBlock;
+	call MOD_2;
+	freePage = R0;
+
+	[PTBR + 8] = freePage;
+	[PTBR + 9] = "0100";
+	multipop(R1, R2, R5, R6, R7, R8, R9, R10);
+endif;
+
+// invalidate rest of the code pages -> page 9,10,11
+alias counter R11;
+counter = 1;
+while ( counter < MAX_FILE_PAGE ) do
+	[PTBR + 8 + (2 * counter)] = -1;
+	[PTBR + 8 + (2 * counter) + 1] = "0000";
+	counter = counter + 1;
+endwhile;
+
+// initialize disk map table
+counter = 0;
+alias diskMapEntry R12;
+diskMapEntry = DISK_MAP_TABLE + [SYSTEM_STATUS_TABLE + 1] * DISK_MAP_ENTRY_SIZE;
+while ( counter < 10 ) do
+	 [diskMapEntry + counter] = -1;
+	counter = counter + 1;
+endwhile;
+
+
+// set valid code pages from inode table of new process
 counter = 0;
 while ( counter < MAX_FILE_PAGE ) do
 	diskBlock = [inode_entry + 8 + counter];
-	if(diskBlock != -1) then
-		multipush(R1, R2, R5, R6, R7, R8, R9, R10, R11);
-        call MOD_2;
-        freePage = R0;
-
-        [PTBR + 8 + (2 * counter)] = freePage;
-		[PTBR + 8 + (2 * counter) + 1] = "0100";
-        multipop(R1, R2, R5, R6, R7, R8, R9, R10, R11);
-
-		//invoke disk load function of device manager module
-		alias page_num R3;
-		alias disk_num R4;
-		page_num = freePage;
-		disk_num = diskBlock;
-		functionNum = 2;
-		multipush(R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11);
-        call MOD_4;
-		multipop(R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11);
-	else
-		[PTBR + 8 + (2 * counter)] = -1;
-		[PTBR + 8 + (2 * counter) + 1] = "0000";
-	endif;
+    	if(diskBlock != -1) then
+    		[diskMapEntry + 4 + counter] = diskBlock;
+    	endif;
 	counter = counter + 1;
 endwhile;
+
+breakpoint;
 
 // store entry point in code to top of user stack
 [[PTBR+16] * 512] = [[PTBR+8] * 512 + 1];

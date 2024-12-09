@@ -1,0 +1,38 @@
+//The console interrupt handler is entered while some "other" process is executing in the user mode and has obtained an input.
+//The handler must switch to the kernel stack of that process, do the interrupt handling, restore the user stack of the process that was running and return control back to the process
+
+// store UPTR
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+
+// switch to kernel stack
+SP = [PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+backup;
+
+//Get the PID of the process that has acquired the terminal from the terminal status table. Someone would have definitely acquired the terminal as it got the input
+alias reqPID R4;
+reqPID = [TERMINAL_STATUS_TABLE + 1];
+
+alias process_table_entry R5;
+process_table_entry = PROCESS_TABLE + (reqPID * PT_ENTRY_SIZE);
+
+//The input entered in the console is saved in port P0 by the XSM machine. Copy the value present in P0 into the input buffer field of the process table entry
+[process_table_entry + 8] = P0;
+
+//Release the terminal
+multipush(R4, R5);
+// store function number of release terminal fn of resource manager and pid in R1, and R2
+alias functionName R1;
+alias pid R2;
+functionName = 9;
+pid = reqPID;
+call MOD_0;
+alias returnVal R6;
+returnVal = R0;
+multipop(R4, R5);
+
+restore;
+
+// switch back to user stack and return to currently running process.
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+ireturn;

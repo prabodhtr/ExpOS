@@ -1,0 +1,50 @@
+type
+LinkedList
+{
+    int num;
+    LinkedList next;
+}
+endtype
+
+int main()
+{
+decl
+    int temp,size,counter,input;
+    LinkedList root, prev, current;
+enddecl
+begin
+    temp = exposcall ( "Write" , -2, "size?" );
+    temp = exposcall ( "Read" , -1, size );
+    temp = exposcall ( "Write" , -2, "Enter numbers!" );
+
+    // initialize heap
+    temp = initialize();
+	prev = null;
+
+    counter = 0;
+    while ( counter < size ) do
+	 	current = alloc();
+		temp = exposcall ( "Read" , -1, input );
+    	current.num = input;
+    	current.next = null;
+    	if(prev == null) then
+    		root = current;
+    		prev = current;
+    	else
+    		prev.next = current;
+    		prev = current;
+    	endif;
+	 	counter = counter + 1;
+    endwhile;
+
+    counter = 0;
+    current = root;
+    temp = exposcall ( "Write" , -2, "Printing!" );
+	while ( counter < size ) do
+    	temp = exposcall ( "Write" , -2, current.num );
+    	current = current.next;
+	 	counter = counter + 1;
+	endwhile;
+    return 0;
+end
+}
