@@ -1,0 +1,185 @@
+define MAX_FILE_PAGE 4;
+define DISK_MAP_ENTRY_SIZE 10;
+
+// executed from application. So app is expected to backup registers
+alias userSP R5;
+userSP = SP;
+
+// switch from user stack to kernel stack
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1] * PT_ENTRY_SIZE) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE+1] * PT_ENTRY_SIZE) + 11] * 512 - 1;
+
+// set the mode flag of process table to that of exec system call
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * PT_ENTRY_SIZE) + 9] = 9;
+
+// get 'physical address' of argument 1 (userSP-4) to get the exec file name
+// filename = valueAt([ ptbr + 2 * logicalPage ] * 512 + offset)
+alias fileName R6;
+fileName = [[PTBR + (2 * (userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+alias counter R7;
+counter = 0;
+while(counter < MAX_FILE_NUM) do
+	if([INODE_TABLE + (counter * 16) + 1] == fileName) then
+		if([INODE_TABLE + (counter * 16) + 0] != EXEC) then
+			// invalid file. return -1
+			[[PTBR + (2 * ((userSP - 1) / 512))] * 512 + ((userSP - 1) % 512)] = -1;
+			[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * PT_ENTRY_SIZE) + 9] = 0;
+			ireturn;
+		endif;
+		break;
+	endif;
+	counter = counter + 1;
+endwhile;
+
+if(counter == MAX_FILE_NUM) then
+	// file not found
+	[[PTBR + (2 * ((userSP - 1) / 512))] * 512 + ((userSP - 1) % 512)] = -1;
+	[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * PT_ENTRY_SIZE) + 9] = 0;
+	SP = userSP;
+	ireturn;
+endif;
+
+// file is present and conforms to XEXE format
+alias inode_entry R8;
+inode_entry = INODE_TABLE + (counter * 16);
+
+// exit current process
+alias functionNum R1;
+alias pid R2;
+functionNum = 3;
+pid = [SYSTEM_STATUS_TABLE + 1];
+multipush(R5,R6,R7,R8);
+call MOD_1;
+multipop(R5,R6,R7,R8);
+
+// Since Exec system call runs in kernel mode and needs a kernel stack for its own execution, after coming back from Exit process function, exec reclaims the same user area page for the new process
+alias userAreaPage R7;
+userAreaPage = [PROCESS_TABLE + ( pid * PT_ENTRY_SIZE ) + 11];
+
+// increment memory free list entry for the userAreaPage
+[MEMORY_FREE_LIST + userAreaPage] = [MEMORY_FREE_LIST + userAreaPage] + 1;
+// decrement mem_free_count in system status table
+[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+// set SP to start of userAreaPage to start processing teh new program
+SP = userAreaPage * 512 - 1;
+
+//initialize per-process page table for the process(last 16 words of user area page. Think why 15 :))
+alias per_proc_pt R12;
+alias entrycnt R13;
+per_proc_pt = (userAreaPage + 1) * 512 - 1 - 15;
+entrycnt = 0;
+while(entrycnt < 16) do
+	[per_proc_pt + entrycnt] = -1;
+	entrycnt = entrycnt + 1;
+endwhile;
+
+// new process uses same processID. So update state to running and store inode entry of new process
+[PROCESS_TABLE + ( pid * PT_ENTRY_SIZE ) + 4] = "RUNNING";
+[PROCESS_TABLE + ( pid * PT_ENTRY_SIZE ) + 7] = inode_entry;
+
+// set page table entries of new process
+PTBR = [PROCESS_TABLE + ( pid * PT_ENTRY_SIZE ) + 14];
+
+//Library -> page 0 and 1
+[PTBR+0] = 63;
+[PTBR+1] = "0100";
+[PTBR+2] = 64;
+[PTBR+3] = "0100";
+
+// heap will be obtained dynamically on page fault
+
+//Heap -> page 2
+[PTBR+4] = -1;
+[PTBR+5] = "0000";
+
+//Heap -> page 3
+[PTBR+6] = -1;
+[PTBR+7] = "0000";
+
+alias freePage R9;
+functionNum = 1;
+
+// allocate 2 stack pages greedily
+multipush(R1, R2, R5, R6, R7, R8, R9);
+call MOD_2;
+freePage = R0;
+
+//stack -> page 8
+[PTBR+16] = freePage;
+[PTBR+17] = "0110";
+
+call MOD_2;
+freePage = R0;
+
+//stack -> page 9
+[PTBR+18] = freePage;
+[PTBR+19] = "0110";
+
+multipop(R1, R2, R5, R6, R7, R8, R9);
+
+// load only the first code block. Rest are invalidated and will be loaded lazily
+alias diskBlock R10;
+diskBlock = [inode_entry + 8 + 0];
+if(diskBlock != -1) then
+	multipush(R1, R2, R5, R6, R7, R8, R9, R10);
+	alias arg1 R2;
+	functionNum = 5;
+	arg1 = diskBlock;
+	call MOD_2;
+	freePage = R0;
+
+	[PTBR + 8] = freePage;
+	[PTBR + 9] = "0100";
+	multipop(R1, R2, R5, R6, R7, R8, R9, R10);
+endif;
+
+// invalidate rest of the code pages -> page 9,10,11
+alias counter R11;
+counter = 1;
+while ( counter < MAX_FILE_PAGE ) do
+	[PTBR + 8 + (2 * counter)] = -1;
+	[PTBR + 8 + (2 * counter) + 1] = "0000";
+	counter = counter + 1;
+endwhile;
+
+// initialize disk map table
+counter = 0;
+alias diskMapEntry R12;
+diskMapEntry = DISK_MAP_TABLE + [SYSTEM_STATUS_TABLE + 1] * DISK_MAP_ENTRY_SIZE;
+while ( counter < 10 ) do
+	 [diskMapEntry + counter] = -1;
+	counter = counter + 1;
+endwhile;
+
+
+// set valid code pages from inode table of new process
+counter = 0;
+while ( counter < MAX_FILE_PAGE ) do
+	diskBlock = [inode_entry + 8 + counter];
+    	if(diskBlock != -1) then
+    		[diskMapEntry + 4 + counter] = diskBlock;
+    	endif;
+	counter = counter + 1;
+endwhile;
+
+// store entry point in code to top of user stack
+[[PTBR+16] * 512] = [[PTBR+8] * 512 + 1];
+
+// set SP to top of user stack(logical page)
+SP = 8 * 512;
+// reset mode flag
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * PT_ENTRY_SIZE) + 9] = 0;
+
+ireturn;
+
+
+
+
+
+
+
+
+
+
