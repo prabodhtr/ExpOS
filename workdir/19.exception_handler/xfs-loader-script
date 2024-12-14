@@ -1,20 +1,20 @@
 fdisk
-load --os __CURR_DIR__/../finalOS/os-startup.xsm
-load --exhandler __CURR_DIR__/exception-handler.xsm
-load --int=timer __CURR_DIR__/timer-interrupt.xsm
-load --int=console __CURR_DIR__/console-interrupt.xsm
-load --int=disk __CURR_DIR__/disk-interrupt.xsm
-load --int=6 __CURR_DIR__/read-interrupt.xsm
-load --int=7 __CURR_DIR__/write-interrupt.xsm
-load --int=9 __CURR_DIR__/exec-interrupt.xsm
-load --int=10 __CURR_DIR__/../finalOS/halt.xsm
-load --module 0 __CURR_DIR__/resource-manager-module.xsm
-load --module 1 __CURR_DIR__/process-manager-module.xsm
-load --module 2 __CURR_DIR__/memory-manager-module.xsm
-load --module 4 __CURR_DIR__/device-manager-module.xsm
-load --module 5 __CURR_DIR__/scheduler-module.xsm
-load --module 7 __CURR_DIR__/boot-module.xsm
+load --os __CURR_DIR__/../finalOS/target/os-startup.xsm
+load --exhandler __CURR_DIR__/target/exception-handler.xsm
+load --int=timer __CURR_DIR__/target/timer-interrupt.xsm
+load --int=console __CURR_DIR__/target/console-interrupt.xsm
+load --int=disk __CURR_DIR__/target/disk-interrupt.xsm
+load --int=6 __CURR_DIR__/target/read-interrupt.xsm
+load --int=7 __CURR_DIR__/target/write-interrupt.xsm
+load --int=9 __CURR_DIR__/target/exec-interrupt.xsm
+load --int=10 __CURR_DIR__/../finalOS/target/halt.xsm
+load --module 0 __CURR_DIR__/target/resource-manager-module.xsm
+load --module 1 __CURR_DIR__/target/process-manager-module.xsm
+load --module 2 __CURR_DIR__/target/memory-manager-module.xsm
+load --module 4 __CURR_DIR__/target/device-manager-module.xsm
+load --module 5 __CURR_DIR__/target/scheduler-module.xsm
+load --module 7 __CURR_DIR__/target/boot-module.xsm
 load --library /home/expos/myexpos/expl/library.lib
-load --init __CURR_DIR__/init.xsm
-load --idle __CURR_DIR__/idle.xsm
-load --exec __CURR_DIR__/odd.xsm
+load --init __CURR_DIR__/target/init.xsm
+load --idle __CURR_DIR__/target/idle.xsm
+load --exec __CURR_DIR__/target/odd.xsm
