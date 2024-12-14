@@ -25,7 +25,7 @@ _sourced from eXpOSNITC for reference_
   - batch-compile.sh finalOS
 - format and load files to disk in bulk
   - load-disk.sh 18
-- start xsm with timer
+- start xsm with timer and run odd.xsm
   - start-xsm.sh timer 10
 
 ## Assignment

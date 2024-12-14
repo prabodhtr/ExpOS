@@ -131,11 +131,10 @@ while ( counter < MAX_FILE_PAGE ) do
 	if(diskBlock != -1) then
 		multipush(R1, R2, R5, R6, R7, R8, R9, R10, R11);
         call MOD_2;
+        multipop(R1, R2, R5, R6, R7, R8, R9, R10, R11);
         freePage = R0;
-
         [PTBR + 8 + (2 * counter)] = freePage;
 		[PTBR + 8 + (2 * counter) + 1] = "0100";
-        multipop(R1, R2, R5, R6, R7, R8, R9, R10, R11);
 
 		//invoke disk load function of device manager module
 		alias page_num R3;
