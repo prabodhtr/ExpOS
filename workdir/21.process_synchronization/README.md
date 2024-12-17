@@ -1,6 +1,6 @@
 ## Pre-requisite
 
-- Read and understand A[ccess control and synchronization](https://exposnitc.github.io/os_spec-files/expos_abstractions.html) and 
+- Read and understand [Access control and synchronization](https://exposnitc.github.io/os_spec-files/expos_abstractions.html) and 
   [Process synchronization](https://exposnitc.github.io/os_spec-files/synchronization.html#process_synchronization) documentations before proceeding further
 
 ## Learning Objectives 
@@ -43,4 +43,17 @@ Then, the program shall use Exec system call to execute pid.xsm file. Run this p
     - load-disk.sh 21 assignment
   - start xsm with timer with shell.spl as init program and run fork.xsm
     - start-xsm.sh timer 10
+  - Expected output: PIDs of 8 processes including parent and 7 other that was forked
 
+    ### Child creation workflow
+
+  ```mermaid
+  graph TD;
+      parent-->fork-1-child-1;
+      parent-->fork-2-child-1;
+      parent-->fork-3-child-1;
+      fork-1-child-1-->fork-2-child-2;
+      fork-1-child-1-->fork-3-child-2;
+      fork-2-child-1-->fork-3-child-3;
+      fork-2-child-2-->fork-3-child-4;
+  ```
