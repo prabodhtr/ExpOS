@@ -20,10 +20,10 @@ _sourced from eXpOSNITC for reference_
 ## Steps
 
 - run batch_compile to generate compile spl and expl files
-  - batch-compile.sh 19
+  - batch-compile.sh 20
   - batch-compile.sh finalOS
 - format and load files to disk in bulk
-  - load-disk.sh 19
+  - load-disk.sh 20
 - start xsm with timer and run forkEx.xsm
   - start-xsm.sh timer 10
 
