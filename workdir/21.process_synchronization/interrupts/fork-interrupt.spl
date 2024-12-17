@@ -1,0 +1,174 @@
+// set the mode flag of process table to that of write system call
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 8;
+
+//program should have backed up
+alias userSP R5;
+alias ppid R6;
+userSP = SP;
+ppid = [SYSTEM_STATUS_TABLE + 1];
+PTBR = PAGE_TABLE_BASE + ppid * 20;
+
+// switch to kernel stack
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+// invoke get pcb entry to get new PID for child process
+alias functionNum R1;
+functionNum = 1;
+multipush(R1, R2, R3, R5, R6);
+call MOD_1;
+multipop(R1, R2, R3, R5, R6);
+alias childPID R7;
+childPID = R0;
+
+if(childPID == -1) then
+	// no process available. Return -1 to parent
+	[([PTBR + 2 * ((userSP - 1) / 512)] * 512) + (userSP - 1) % 512] = -1;
+	[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+	SP = [PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+	ireturn;
+endif;
+
+// allocate heap to parent if not done
+if( [PTBR + 4] == -1 ) then
+	//get free page
+	multipush(R1, R2, R3, R5, R6, R7);
+	functionNum = 1;
+	call MOD_2;
+	multipop(R1, R2, R3, R5, R6, R7);
+
+	// update page table entry
+	[PTBR + 4] = R0;
+	[PTBR + 5] = "1110";
+endif;
+
+if( [PTBR + 6] == -1 ) then
+	//get free page
+	multipush(R1, R2, R3, R5, R6, R7);
+	functionNum = 1;
+	call MOD_2;
+	multipop(R1, R2, R3, R5, R6, R7);
+
+	// update page table entry
+	[PTBR + 6] = R0;
+	[PTBR + 7] = "1110";
+endif;
+
+//get user Area page for child
+multipush(R1, R2, R3, R5, R6, R7);
+functionNum = 1;
+call MOD_2;
+multipop(R1, R2, R3, R5, R6, R7);
+
+alias child_pt R8;
+child_pt = PROCESS_TABLE + childPID * 16;
+
+// update child process table entry with user area page
+[child_pt + 11] = R0;
+// copy parent process table entries to child
+[child_pt + 3] = [PROCESS_TABLE + (ppid * 16) + 3];
+[child_pt + 6] = [PROCESS_TABLE + (ppid * 16) + 6];
+[child_pt + 7] = [PROCESS_TABLE + (ppid * 16) + 7];
+[child_pt + 10] = [PROCESS_TABLE + (ppid * 16) + 10];
+[child_pt + 13] = [PROCESS_TABLE + (ppid * 16) + 13];
+
+//MODE FLAG, KPTR are set to zero as the child process starts its execution from the user mode.
+[child_pt + 0] = 0;
+[child_pt + 9] = 0;
+[child_pt + 12] = 0;
+
+//PID(1), PTBR(14) and PTLR(15) fields of the child process are already initialized in the Get Pcb Entry function.
+//It is not required to initialize INPUT BUFFER(8)
+[child_pt + 2] = ppid;
+[child_pt + 4] = "CREATED";
+
+//initialize per-process resource table for the child process from parent(last 16 words of user area page)
+//open files and semaphores remain same for parent and child
+alias counter R9;
+alias per_proc_pt_p R10;
+alias per_proc_pt_c R11;
+per_proc_pt_p = (([PROCESS_TABLE + (ppid * 16) + 11] + 1) * 512 - 1) - 15;
+per_proc_pt_c = (([PROCESS_TABLE + (childPID * 16) + 11] + 1) * 512 - 1) - 15;
+counter = 0;
+while(counter < 16) do
+	[per_proc_pt_c + counter] = [per_proc_pt_p + counter];
+	counter = counter + 1;
+endwhile;
+
+// initialise disk map table of child from parent
+counter = 0;
+while(counter < 10) do
+	if(counter > 1 && counter < 8) then
+		// copy heap and code disk blocks
+		[DISK_MAP_TABLE + childPID * 10 + counter] = [DISK_MAP_TABLE + ppid * 10 + counter];
+	else
+		// stack and user area page are new for child so hence, no disk block tied to it yet
+		[DISK_MAP_TABLE + childPID * 10 + counter] = -1;
+	endif;
+	counter = counter + 1;
+endwhile;
+
+//initialise page table of child
+counter = 0;
+while (counter < 20) do
+	if(counter < 16) then
+		//library,heap and code pages are shared
+		R0 = [PAGE_TABLE_BASE + ppid * 20 + counter];
+		[PAGE_TABLE_BASE + childPID * 20 + counter] = R0;
+		[PAGE_TABLE_BASE + childPID * 20 + counter + 1] = [PAGE_TABLE_BASE + ppid * 20 + counter + 1];
+
+		[MEMORY_FREE_LIST + R0] = [MEMORY_FREE_LIST + R0] + 1;
+	else
+		// get new stack pages for child
+        multipush(R1, R2, R3, R5, R6, R7, R8, R9, R10, R11);
+        functionNum = 1;
+        call MOD_2;
+        multipop(R1, R2, R3, R5, R6, R7, R8, R9, R10, R11);
+
+		// update page table stack pages
+        [PAGE_TABLE_BASE + childPID * 20 + counter] = R0;
+		[PAGE_TABLE_BASE + childPID * 20 + counter + 1] = [PAGE_TABLE_BASE + ppid * 20 + counter + 1];
+	endif;
+	counter = counter + 2;
+endwhile;
+
+//copy over contents of parent stack to child stack.
+alias childStackPage R12;
+alias parentStackPage R13;
+alias wordCount R14;
+counter = 16;
+while (counter < 20) do
+	childStackPage = [PAGE_TABLE_BASE + childPID * 20 + counter];
+	parentStackPage = [PAGE_TABLE_BASE + ppid * 20 + counter];
+	wordCount = 0;
+	while(wordCount < 512) do
+		[childStackPage * 512 + wordCount] = [parentStackPage * 512 + wordCount];
+		wordCount = wordCount + 1;
+	endwhile;
+	counter = counter + 2;
+endwhile;
+
+//Store the value in the BP register on top of the kernel stack of child process.
+//This value will be used to initialize the BP register of the child process by the scheduler when the child is scheduled for the first time
+[[child_pt + 11] * 512] = BP;
+
+// return PID to parent process and 0 to child process.
+// stack pointer is same for both parent and child and is equal to userSP (why?). Only their physical locations differ in memory
+
+// store 0 as return value in stack of child process
+PTBR = PAGE_TABLE_BASE + childPID * 20;
+[([PTBR + 2 * ((userSP - 1) / 512)] * 512) + (userSP - 1) % 512] = 0;
+
+// store child pid as return value in stack of parent process
+PTBR = PAGE_TABLE_BASE + ppid * 20;
+[([PTBR + 2 * ((userSP - 1) / 512)] * 512) + (userSP - 1) % 512] = childPID;
+
+// reset mode flag of parent
+[PROCESS_TABLE + (ppid * 16) + 9] = 0;
+
+//switch to user stack of parent
+SP = userSP;
+
+ireturn;
+

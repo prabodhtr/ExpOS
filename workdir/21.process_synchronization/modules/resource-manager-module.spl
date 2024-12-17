@@ -1,0 +1,77 @@
+alias returnVal R0;
+alias functionNum R1;
+alias arg1 R2;
+
+//acquire disk
+// arg1:pid;
+if(functionNum == 3) then
+	while([DISK_STATUS_TABLE + 0] == 1) do
+		// change current process status to WAIT_DISK
+		[PROCESS_TABLE + (arg1 * PT_ENTRY_SIZE) + 4] = "WAIT_DISK";
+		multipush(R1, R2);
+		//call scheduler to schedule other process
+		call MOD_5;
+		//continue execution once scheduler schedules this processes again after disk is released
+		multipop(R1, R2);
+	endwhile;
+
+	// on acquiring disk update status and locked pid
+ 	[DISK_STATUS_TABLE + 0] = 1;
+ 	[DISK_STATUS_TABLE + 4] = arg1;
+
+ 	return;
+endif;
+
+//Note: There is no Release Disk function to release the disk instead the disk interrupt handler completes the task of the Release Disk function.
+
+
+//acquire terminal
+// arg1:pid;
+if(functionNum == 8) then
+	while([TERMINAL_STATUS_TABLE + 0] == 1) do
+		// change current process status to WAIT_TERMINAL
+		[PROCESS_TABLE + (arg1 * PT_ENTRY_SIZE) + 4] = "WAIT_TERMINAL";
+		multipush(R1, R2);
+		//call scheduler to schedule other process
+		call MOD_5;
+		//continue execution once scheduler schedules this processes again after terminal is released
+		multipop(R1, R2);
+	endwhile;
+
+	// update terminal status upon breaking the loop and acquiring the terminal
+	[TERMINAL_STATUS_TABLE + 0] = 1;
+	[TERMINAL_STATUS_TABLE + 1] = arg1;
+
+	return;
+endif;
+
+//release terminal
+// arg1:pid;
+if(functionNum == 9) then
+	if([TERMINAL_STATUS_TABLE + 1] != arg1) then
+		// process is trying to release terminal without acquiring it. Return -1;
+		returnVal = -1;
+		return;
+	endif;
+
+	// update status to 0 indicating terminal as free
+	[TERMINAL_STATUS_TABLE + 0] = 0;
+
+	//Update the STATE to READY for all processes (with valid PID) which have STATE as WAIT_TERMINAL.
+	alias pid R3;
+    alias ptentry R4;
+    pid = 1;
+    while(pid <= MAX_PROC_NUM) do
+    	ptentry = PROCESS_TABLE + (pid * PT_ENTRY_SIZE);
+    	if([ptentry + 4] == "WAIT_TERMINAL") then
+			[ptentry + 4] = "READY";
+		endif;
+      pid = pid + 1;
+    endwhile;
+
+	// return success
+    returnVal = 0;
+    return;
+endif;
+
+return;

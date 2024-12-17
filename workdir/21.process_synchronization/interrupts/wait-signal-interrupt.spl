@@ -1,0 +1,97 @@
+alias userSP R5;
+userSP = SP;
+alias currentPID R6;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+
+// switch to kernel stack
+[PROCESS_TABLE + ( currentPID * 16) + 13] = SP;
+SP = [PROCESS_TABLE + (currentPID * 16) + 11] * 512 - 1;
+
+PTBR = [PROCESS_TABLE + (currentPID * 16) + 14];
+
+//get system call number at userSP - 5
+alias sysCallNum R7;
+sysCallNum = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+
+// implement getpid system call
+if(sysCallNum == 11 ) then
+	[PROCESS_TABLE + ( currentPID * 16) + 9] = 11;
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = currentPID;
+endif;
+
+
+// implement getppid system call
+if(sysCallNum == 12 ) then
+	[PROCESS_TABLE + ( currentPID * 16) + 9] = 12;
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = [PROCESS_TABLE + ( currentPID * 16) + 2];
+endif;
+
+
+//implement wait system call
+if(sysCallNum == 13 ) then
+	// change mode flag
+	[PROCESS_TABLE + ( currentPID * 16) + 9] = 13;
+
+	//extract pid arg from stack
+	alias pidToWait R8;
+	pidToWait = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+	// process should not wait for itself
+	if(pidToWait == currentPID) then
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ( currentPID * 16) + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+
+	// process to wait for should not be terminated
+	if([PROCESS_TABLE + ( pidToWait * 16) + 4] == "TERMINATED") then
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ( currentPID * 16) + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+
+	// pidToWait should be valid
+	if(pidToWait < 0 || pidToWait >= MAX_PROC_NUM) then
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ( currentPID * 16) + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+
+	[PROCESS_TABLE + ( currentPID * 16) + 4] = "WAIT_PROCESS";
+	[PROCESS_TABLE + ( currentPID * 16) + 5] = pidToWait;
+
+	// schedule other process
+	multipush(R1, R2, R3, R4, R5, R6, R7, R8);
+	call MOD_5;
+	multipop(R1, R2, R3, R4, R5, R6, R7, R8);
+
+	// executed after this process has become ready. When process to wait for has raised a signal interrupt
+	// return 0
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+endif;
+
+
+//implement signal system call
+if(sysCallNum == 14 ) then
+	[PROCESS_TABLE + ( currentPID * 16) + 9] = 14;
+	// Loop through all process table entries, if there is a process with STATE as tuple (WAIT_PROCESS, current process PID) then change the STATE field to READY
+	alias counter R8;
+	counter = 0;
+	while(counter < MAX_PROC_NUM) do
+		if(([PROCESS_TABLE + ( counter * 16) + 4] == "WAIT_PROCESS") && ([PROCESS_TABLE + ( counter * 16) + 5] == currentPID)) then
+			[PROCESS_TABLE + ( counter * 16) + 4] = "READY";
+		endif;
+		counter = counter + 1;
+	endwhile;
+endif;
+
+
+// reset mode flag
+[PROCESS_TABLE + ( currentPID * 16) + 9] = 0;
+//switch to user stack and return
+SP = userSP;
+ireturn;
