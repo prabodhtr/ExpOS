@@ -1,0 +1,45 @@
+decl
+	int print(int pid);
+enddecl
+
+int print(int pid)
+{
+	decl
+		int temp;
+	enddecl
+
+	begin
+		if(pid==-1) then
+			temp=exposcall("Write", -2, "Fork Error");
+		else
+			if(pid != 0) then
+				temp=exposcall("Write", -2, pid);
+			endif;
+		endif;
+		return 0;
+	end
+}
+
+int main()
+{
+    decl
+        int temp,pid;
+    enddecl
+
+    begin
+        pid = exposcall("Fork");
+				temp = print(pid);
+
+        pid = exposcall("Fork");
+				temp = print(pid);
+
+        pid = exposcall("Fork");
+				temp = print(pid);
+
+        pid = exposcall("Fork");
+				temp = print(pid);
+
+        temp = exposcall("Exec", "child.xsm");
+        return 0;
+    end
+}

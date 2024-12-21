@@ -1,0 +1,53 @@
+decl
+	int print(int semid, int pid, string msg);
+	int semid;
+enddecl
+
+int print(int semid, int pid, string msg)
+{
+	decl
+		int temp;
+	enddecl
+
+	begin
+		temp = exposcall("SemLock", semid);
+		temp = exposcall("Write", -2, msg);
+		temp = exposcall("Write", -2, pid);
+		temp = exposcall("SemUnLock", semid);
+		return 0;
+	end
+}
+
+int main()
+{
+decl
+    int temp, pid1, pid2, pid3,pid, pid4;
+enddecl
+begin
+	semid = exposcall("Semget");
+
+	pid = exposcall ( "Getpid" );
+
+	temp = print(semid, pid, "fork from");
+	pid1 = exposcall ( "Fork" );
+
+	pid = exposcall ( "Getpid" );
+	temp = print(semid, pid, "fork from");
+	pid2 = exposcall ( "Fork" );
+
+	pid = exposcall ( "Getpid" );
+	temp = print(semid, pid, "fork from");
+	pid3 = exposcall ( "Fork" );
+
+	pid = exposcall ( "Getpid" );
+	temp = print(semid, pid, "fork from");
+	pid4 = exposcall ( "Fork" );
+
+	pid = exposcall ( "Getpid" );
+	temp = print(semid, pid, "Exec in");
+	temp = exposcall ( "Exec" , "pid.xsm" );
+
+	temp = exposcall("Semrelease", semid);
+	return 0;
+end
+}

@@ -1,0 +1,46 @@
+// original version of halt.spl in finalOS version
+
+// set the mode flag of process table to that of exit system call
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 10;
+
+// store UPTR
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+
+// switch to kernel stack
+SP = [PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+alias currentPID R5;
+currentPID = [SYSTEM_STATUS_TABLE+1];
+
+// call exit module in process manager
+alias functionNum R1;
+functionNum = 3;
+R2 = currentPID;
+multipush(R1, R2, R3, R4, R5);
+call MOD_1;
+multipop(R1, R2, R3, R4, R5);
+
+// check if there are other valid processes to schedule other than idle process
+alias pid R6;
+alias pstatus R7;
+pid = (currentPID + 1) % MAX_PROC_NUM;
+while(pid != currentPID) do
+	pstatus = [PROCESS_TABLE + (pid * PT_ENTRY_SIZE) + 4];
+	if(pid == 0) then
+		pid = 1;
+		continue;
+	endif;
+
+	if(pstatus != "TERMINATED") then
+		break;
+	else
+		pid = (pid + 1) % MAX_PROC_NUM;
+	endif;
+endwhile;
+
+// halt system if no other processes are there to schedule. Else call scheduler context
+if(pid == currentPID) then
+	halt;
+else
+	call MOD_5;
+endif;

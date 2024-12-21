@@ -1,0 +1,31 @@
+//The disk interrupt is invoked while some "other" process is executing in the user mode and has loaded a disk block.
+//The handler must switch to the kernel stack of that process, do the interrupt handling, restore the user stack of the process that was running and return control back to the process
+
+// store UPTR
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+
+// switch to kernel stack
+SP = [PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+backup;
+
+//Set the STATUS field in the Disk Status table to 0 indicating that disk is no longer busy.
+[DISK_STATUS_TABLE + 0] = 0;
+
+//Update the STATE to READY for all processes (with valid PID) which have STATE as WAIT_DISK
+alias pid R4;
+alias ptentry R5;
+pid = 1;
+while(pid <= MAX_PROC_NUM) do
+	ptentry = PROCESS_TABLE + (pid * PT_ENTRY_SIZE);
+	if([ptentry + 4] == "WAIT_DISK") then
+		[ptentry + 4] = "READY";
+	endif;
+  pid = pid + 1;
+endwhile;
+
+restore;
+
+// switch back to user stack and return to currently running process.
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+ireturn;

@@ -9,8 +9,6 @@ SP = [PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
 
 backup;
 
-breakpoint;
-
 multipush(EIP);
 
 alias functionNum R1;
@@ -49,7 +47,6 @@ endif;
 // page fault in code page; EPN = 4/5/6/7
 if(EPN > 3 && EPN < 8 ) then
 	alias blockToLoad R7;
-	breakpoint;
 	blockToLoad = [DISK_MAP_TABLE + pid * 10 + EPN];
 
 	//invoke get code page
@@ -65,10 +62,9 @@ if(EPN > 3 && EPN < 8 ) then
 	PTBR = PAGE_TABLE_BASE + pid * 20;
 	[PTBR + 2 * EPN] = loadedPage;
 	[PTBR + 2 * EPN + 1] = "1100";
-	breakpoint;
 endif;
 
-// page fault due to heap page; EPN=8/9
+// page fault due to heap page; EPN=2/3
 if((EPN == 2) || (EPN == 3)) then
 	//get free page
 	multipush(R1, R2, R3, R5, R6, R7);

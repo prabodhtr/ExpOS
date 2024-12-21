@@ -1,0 +1,201 @@
+// load disk free list
+loadi(61,2);
+
+// load inode and user table
+loadi(59,3);
+loadi(60,4);
+
+// Load the exception handler routine
+loadi(2, 15);
+loadi(3, 16);
+
+// load timer interrupt handler from disk
+loadi(4, 17);
+loadi(5, 18);
+
+// load disk interrupt handler from disk
+loadi(6, 19);
+loadi(7, 20);
+
+// load console interrupt handler
+loadi(8, 21);
+loadi(9, 22);
+
+// Load read interrupt routine(INT6)
+loadi(14,27);
+loadi(15,28);
+
+// Load write interrupt routine(INT7)
+loadi(16,29);
+loadi(17,30);
+
+// Load fork interrupt routine(INT8)
+loadi(18,31);
+loadi(19,32);
+
+// Load exec interrupt routine(INT9)
+loadi(20,33);
+loadi(21,34);
+
+// Load exit interrupt routine(INT10)
+loadi(22,35);
+loadi(23,36);
+
+// Load wait signal interrupt routine(INT11)
+loadi(24,37);
+loadi(25,38);
+
+// Load wait semget and release interrupt routine(INT13)
+loadi(28,41);
+loadi(29,42);
+
+// Load wait semlock and unlock interrupt routine(INT14)
+loadi(30,43);
+loadi(31,44);
+
+// Load shutdown interrupt routine(INT15)
+loadi(32,45);
+loadi(33,46);
+
+// load resource manager module(MOD_0)
+loadi(40,53);
+loadi(41,54);
+
+// load process manager module(MOD_1)
+loadi(42,55);
+loadi(43,56);
+
+// load memory manager module(MOD_2)
+loadi(44,57);
+loadi(45,58);
+
+// load device manager module(MOD_4)
+loadi(48,61);
+loadi(49,62);
+
+// load scheduler module(MOD_5)
+loadi(50,63);
+loadi(51,64);
+
+// load library files from disk to memory
+loadi(63,13);
+loadi(64,14);
+
+// load init program from disk to specific memory
+loadi(65,7);
+loadi(66,8);
+
+// set page table entries for init process
+PTBR = PAGE_TABLE_BASE + 20; //as PID of idle process is 1 and page table size of each process in 20
+
+//Library -> page 0 and 1
+[PTBR+0] = 63;
+[PTBR+1] = "0100";
+[PTBR+2] = 64;
+[PTBR+3] = "0100";
+
+//Heap -> page 2 and 3
+[PTBR+4] = 78;
+[PTBR+5] = "0110";
+[PTBR+6] = 79;
+[PTBR+7] = "0110";
+
+//Code  -> page 4, 5, 6 and 7
+[PTBR+8] = 65;
+[PTBR+9] = "0100";
+[PTBR+10] = 66;
+[PTBR+11] = "0100";
+[PTBR+12] = -1;
+[PTBR+13] = "0000";
+[PTBR+14] = -1;
+[PTBR+15] = "0000";
+
+//Stack  -> page 8 and 9
+[PTBR+16] = 76;
+[PTBR+17] = "0110";
+[PTBR+18] = 77;
+[PTBR+19] = "0110";
+
+// assign PID as 1 for the init process table entry. Each process is given 16 entries
+[(PROCESS_TABLE + 16) + 1] = 1;
+// set state of init process to CREATED as its the first process started by OS during bootstrap
+[(PROCESS_TABLE + 16) + 4] = "CREATED";
+// set the user area page for init code. 11th word stores the physical user area page num
+[(PROCESS_TABLE + 16) + 11] = 80;
+// set the KPTR to 0. Kernel stack is always cleared after returning to user mode. So offset is always 0 at the start
+[(PROCESS_TABLE + 16) + 12] = 0;
+// set the UPTR to logical address of init process stack page. Shouldn't it be done by kernel process?
+[(PROCESS_TABLE + 16) + 13] = 8*512;
+// set PTBR field
+[(PROCESS_TABLE + 16) + 14] = PAGE_TABLE_BASE + 20;
+// set PTLR field
+[(PROCESS_TABLE + 16) + 15] = 10;
+
+
+//initialize per-process resource table for the init process(last 16 words of user area page. Think why 15 :))
+alias counter R1;
+alias per_proc_rt R2;
+per_proc_rt = (80 + 1) * 512 - 1 - 15;
+counter = 0;
+while(counter < 16) do
+	[per_proc_rt + counter] = -1;
+	counter = counter + 1;
+endwhile;
+
+//initialise semaphore table
+counter = 0;
+while(counter < MAX_SEM_COUNT) do
+	// locking pid to -1
+	[SEMAPHORE_TABLE + 4 * counter] = -1;
+	// process count to 0
+	[SEMAPHORE_TABLE + 4 * counter + 1] = 0;
+	// rest 2 are unused!
+	counter = counter + 1;
+endwhile;
+
+// initialise mem free list. library, init, idle and then rest of pages
+counter = 0;
+while ( counter < 83 ) do
+	[MEMORY_FREE_LIST + counter] = 1;
+	counter = counter + 1;
+endwhile;
+
+while ( counter < 128 ) do
+	[MEMORY_FREE_LIST + counter] = 0;
+	counter = counter + 1;
+endwhile;
+
+//initialize disk map entries of init process
+counter = 0;
+while ( counter < 10 ) do
+	if(counter < 2 ) then
+		[DISK_MAP_TABLE + 10 + counter] = -1;
+	else
+		[DISK_MAP_TABLE + 10 + counter] = [PTBR + 2 * counter];
+	endif;
+	counter = counter + 1;
+endwhile;
+
+// initialise wait mem count and mem free count
+[SYSTEM_STATUS_TABLE + 3] = 0;
+// we only consider pages available for user here (76 to 127) as get free page considers only that
+[SYSTEM_STATUS_TABLE + 2] = 128 - 83;
+
+// initialise disk status table
+[DISK_STATUS_TABLE + 0] = 0;
+
+// set status of all other process to terminated for RR scheduling
+alias pid R0;
+pid = 2;
+while(pid <= MAX_PROC_NUM) do
+    [(PROCESS_TABLE + (pid * PT_ENTRY_SIZE)) + 4] = "TERMINATED";
+  pid = pid + 1;
+endwhile;
+
+//Initialize the STATUS field in the Terminal Status table as 0. This will indicate that the terminal is free before scheduling the first process
+[TERMINAL_STATUS_TABLE + 0] = 0;
+
+// push location of first instruction to process stack location(following xexe format). Use physical address as os code is run in privileged mode
+[76 * 512] = [65 * 512 + 1];
+
+return;

@@ -1,3 +1,9 @@
 fdisk
 load --library /home/expos/myexpos/expl/library.lib
 load --os __CURR_DIR__/os-startup.xsm
+load --exhandler __CURR_DIR__/target/exception-handler.xsm
+load --int=console __CURR_DIR__/target/console-interrupt.xsm
+load --int=6 __CURR_DIR__/target/read-interrupt.xsm
+load --int=9 __CURR_DIR__/target/exec-interrupt.xsm
+load --int=11 __CURR_DIR__/target/wait-signal-interrupt.xsm
+load --idle __CURR_DIR__/target/idle.xsm

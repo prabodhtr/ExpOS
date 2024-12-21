@@ -1,0 +1,122 @@
+alias userSP R5;
+userSP = SP;
+alias currentPID R6;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+alias per_proc_rt R8;
+per_proc_rt = ([PROCESS_TABLE + (currentPID * 16) + 11] + 1) * 512 - 1 - 15;
+
+// switch to kernel stack
+[PROCESS_TABLE + ( currentPID * 16) + 13] = SP;
+SP = [PROCESS_TABLE + (currentPID * 16) + 11] * 512 - 1;
+
+PTBR = [PROCESS_TABLE + (currentPID * 16) + 14];
+
+//get system call number at userSP - 5
+alias sysCallNum R9;
+sysCallNum = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+
+
+// semlock sys call
+if(sysCallNum == 19) then
+	[PROCESS_TABLE + ( currentPID * 16) + 9] = 19;
+
+	// validate descriptor passed
+	alias semdesc R10;
+	semdesc = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+	if((semdesc < 0) || (semdesc > 7)) then
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ( currentPID * 16) + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+
+	if([per_proc_rt + semdesc * 2] != "SEMAPHORE") then
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ( currentPID * 16) + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+
+	alias sem_table_index R11;
+	sem_table_index = [per_proc_rt + semdesc * 2 + 1];
+
+	// if semaphore is not free and is locked by some other process, enter busy loop
+	while(([SEMAPHORE_TABLE + sem_table_index * 4] != -1) && ([SEMAPHORE_TABLE + sem_table_index * 4] != currentPID)) do
+		[PROCESS_TABLE + ( currentPID * 16) + 4] = "WAIT_SEMAPHORE";
+		[PROCESS_TABLE + ( currentPID * 16) + 5] = sem_table_index;
+
+		multipush(R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11);
+		call MOD_5;
+		multipop(R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11);
+
+	endwhile;
+
+	// when semaphore is free; update locking pid
+	[SEMAPHORE_TABLE + sem_table_index * 4] = currentPID;
+
+	//return 0
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+
+endif;
+
+// semunlock sys call
+if(sysCallNum == 20) then
+	[PROCESS_TABLE + ( currentPID * 16) + 9] = 20;
+
+	// validate descriptor passed
+	alias semdesc R10;
+	semdesc = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+	if((semdesc < 0) || (semdesc > 7)) then
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ( currentPID * 16) + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+
+	if([per_proc_rt + semdesc * 2] != "SEMAPHORE") then
+		[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+		[PROCESS_TABLE + ( currentPID * 16) + 9] = 0;
+		SP = userSP;
+		ireturn;
+	endif;
+
+	alias sem_table_index R11;
+	sem_table_index = [per_proc_rt + semdesc * 2 + 1];
+
+	// if semaphore is locked
+	if([SEMAPHORE_TABLE + sem_table_index * 4] != -1) then
+		// if some other process has locked it,return -2
+		if([SEMAPHORE_TABLE + sem_table_index * 4] != currentPID) then
+			[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -2;
+			[PROCESS_TABLE + (currentPID * 16) + 9] = 0;
+			SP = userSP;
+			ireturn;
+		endif;
+
+		// unlock semaphore
+		[SEMAPHORE_TABLE + sem_table_index * 4] = -1;
+
+		// unlock processes waiting on this sem id
+		alias counter R12;
+		counter = 0;
+		while(counter < MAX_PROC_NUM) do
+			if(([PROCESS_TABLE + ( counter * 16) + 4] == "WAIT_SEMAPHORE") && ([PROCESS_TABLE + ( counter * 16) + 5] == sem_table_index)) then
+				[PROCESS_TABLE + ( counter * 16) + 4] = "READY";
+			endif;
+			counter = counter + 1;
+		endwhile;
+	endif;
+
+	//return 0
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = 0;
+
+endif;
+
+
+// reset mode flag
+[PROCESS_TABLE + ( currentPID * 16) + 9] = 0;
+//switch to user stack and return
+SP = userSP;
+ireturn;

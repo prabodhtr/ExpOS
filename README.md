@@ -31,3 +31,4 @@ for more details.
 - XSM machine disables interrupts when executing in the kernel mode. Hence, the hardware can raise an interrupt only when the machine is executing in the user mode. 
   Hence, the OS has to schedule "some process" even if all processes are waiting for disk/terminal interrupt - for otherwise, the device concerned will never be able to interrupt the processor. 
   The IDLE process is precisely designed to take care of this and other similar situations. 
+- MAX_MEM_PAGE although defaulted to 128 as per docs, compiles to 512 while expos restricts the pages to 128
