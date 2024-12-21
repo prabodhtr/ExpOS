@@ -51,10 +51,10 @@ The program must print all numbers from 1 to 100, but not necessarily in sequent
    - run batch_compile to generate compile spl and expl files
        - batch-compile.sh 22
        - batch-compile.sh finalOS
-     - format and load files to disk in bulk
-         - load-disk.sh 22 assignment
-     - start xsm with timer with shell.spl as init program and run 'sem-1.xsm'
-         - start-xsm.sh timer 10
+   - format and load files to disk in bulk
+       - load-disk.sh 22 assignment
+   - start xsm with timer with shell.spl as init program and run 'sem-1.xsm'
+       - start-xsm.sh timer 10
 
 2. The ExpL programs given here describes a parent.expl program and a child.expl program. The parent.xsm program will create 8 child processes by invoking Fork 3 times. 
 Each of the child processes will print the process ID (PID) and then, invokes the Exec system call to execute the program "child.xsm". 
@@ -64,13 +64,13 @@ Compile the programs given in the link above and execute the parent program (par
 PID*100 to PID*100+9, where PID = 2 to 9, but not necessarily in sequential order. 
 Also, calculate the maximum memory usage, number of disk access and number of context switches (by modifying the OS Kernel code).
 
-  - run batch_compile to generate compile spl and expl files
-    - batch-compile.sh 22
-    - batch-compile.sh finalOS
-  - format and load files to disk in bulk
-    - load-disk.sh 22 assignment
-  - start xsm with timer with shell.spl as init program and run parent.xsm
-    - start-xsm.sh timer 10
+   - run batch_compile to generate compile spl and expl files
+     - batch-compile.sh 22
+     - batch-compile.sh finalOS
+   - format and load files to disk in bulk
+     - load-disk.sh 22 assignment
+   - start xsm with timer with shell.spl as init program and run parent.xsm
+     - start-xsm.sh timer 10
 
 3. The two ExpL programs given here perform merge sort in two different ways. The first one is done in a sequential manner 
 and the second one, in a concurrent approach. Values from 1 to 64 are stored in decreasing order in a linked list and are sorted 
