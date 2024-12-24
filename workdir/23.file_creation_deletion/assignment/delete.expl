@@ -1,0 +1,31 @@
+int main()
+{
+decl
+    int temp,num,permission;
+    string filename;
+enddecl
+begin
+
+		temp = exposcall ( "Write" , -2, "File name?" );
+		temp = exposcall ( "Read" , -1, filename );
+		temp = exposcall ( "Delete" , filename );
+
+		if(temp == -1) then
+			temp = exposcall ( "Write" , -2, "Access Denied" );
+			temp = exposcall ( "Write" , -2, "OR" );
+			temp = exposcall ( "Write" , -2, "Not data file!" );
+		else
+			if(temp == -2) then
+				temp = exposcall ( "Write" , -2, "File open!" );
+			else
+				if(temp == 0) then
+					temp = exposcall ( "Write" , -2, "Success" );
+					temp = exposcall ( "Write" , -2, "OR" );
+					temp = exposcall ( "Write" , -2, "Not found!" );
+				endif;
+			endif;
+		endif;
+
+    return 0;
+end
+}

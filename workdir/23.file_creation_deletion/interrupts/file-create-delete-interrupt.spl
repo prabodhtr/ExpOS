@@ -1,0 +1,222 @@
+alias functionNum R1;
+alias arg1 R2;
+alias arg2 R3;
+
+alias userSP R5;
+alias currentPID R6;
+alias counter R7;
+
+userSP = SP;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+
+// switch to kernel stack
+[PROCESS_TABLE + ( currentPID * 16) + 13] = SP;
+SP = [PROCESS_TABLE + (currentPID * 16) + 11] * 512 - 1;
+
+PTBR = [PROCESS_TABLE + (currentPID * 16) + 14];
+
+//get system call number at userSP - 5
+alias sysCallNum R8;
+alias retStackAddr R15;
+sysCallNum = [[PTBR + 2 * ((userSP - 5) / 512)] * 512 + ((userSP - 5) % 512)];
+retStackAddr = [PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512);
+
+// file create system call
+if(sysCallNum == 1) then
+  [PROCESS_TABLE + (currentPID * 16) + 9] = 1;
+
+  // get file name and permission from stack
+  alias fileName R9;
+  alias permission R10;
+  fileName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+  permission = [[PTBR + 2 * ((userSP - 3) / 512)] * 512 + ((userSP - 3) % 512)];
+
+  // return 0 if file already exists via inode table
+  counter = 0;
+  while(counter < MAX_FILE_NUM) do
+  	if([INODE_TABLE + (counter * 16) + 1] == fileName) then
+  		[retStackAddr] = 0;
+			goto finally;
+  	endif;
+  	counter = counter + 1;
+  endwhile;
+
+  // find free entry in inode table
+  counter = 0;
+	while(counter < MAX_FILE_NUM) do
+		if([INODE_TABLE + (counter * 16) + 1] == -1) then
+			break;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//return -1 if no free entry found
+	if(counter == MAX_FILE_NUM) then
+		[retStackAddr] = -1;
+		goto finally;
+	endif;
+
+	alias userId R11;
+	alias tempEntry R12;
+	userId = [PROCESS_TABLE + ( currentPID * 16) + 3];
+
+	// set filename, type and size to free entry found
+	tempEntry = INODE_TABLE + (counter * 16);
+	[tempEntry + 0] = DATA; // only data files can be created at runtime
+	[tempEntry + 1] = fileName;
+	[tempEntry + 2] = 0;
+
+	// set user id to that of process
+	[tempEntry + 3] = userId;
+	// set permission to that given
+	[tempEntry + 4] = permission;
+
+	// initialize disk blocks
+	[tempEntry + 8] = -1;
+	[tempEntry + 9] = -1;
+	[tempEntry + 10] = -1;
+	[tempEntry + 11] = -1;
+
+	// update root file entry. Index same as inode index by convention
+	tempEntry = ROOT_FILE + (counter * 8);
+	[tempEntry + 0] = fileName;
+	[tempEntry + 1] = 0;
+	[tempEntry + 2] = DATA;
+	// set username from user-table using userid as index
+	[tempEntry + 3] = [USER_TABLE + (userId * 2) + 0];
+	[tempEntry + 4] = permission;
+
+	// initialize file status table; index same as inode index by convention
+	tempEntry = FILE_STATUS_TABLE + (counter * 4);
+	[tempEntry + 0] = -1;
+	[tempEntry + 1] = -1;
+
+	[retStackAddr] = 0;
+
+endif;
+
+
+// file delete system call
+if(sysCallNum == 4) then
+  [PROCESS_TABLE + (currentPID * 16) + 9] = 4;
+
+  // get file name from stack
+  alias fileName R9;
+  fileName = [[PTBR + 2 * ((userSP - 4) / 512)] * 512 + ((userSP - 4) % 512)];
+
+	// find index of file in inode table
+	counter = 0;
+	while(counter < MAX_FILE_NUM) do
+		if([INODE_TABLE + (counter * 16) + 1] == fileName) then
+			break;
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	//return 0 if file not found
+	if(counter == MAX_FILE_NUM) then
+		[retStackAddr] = 0;
+		goto finally;
+	endif;
+
+	//return -1 if file is not of type DATA
+	if([INODE_TABLE + (counter * 16) + 0] != DATA) then
+		[retStackAddr] = -1;
+		goto finally;
+	endif;
+
+	alias curUserId R10;
+	alias inodeIndex R11;
+	curUserId = [PROCESS_TABLE + ( currentPID * 16) + 3];
+	inodeIndex = counter;
+
+	// if exclusive access is set and current user is neither root nor the owner of the file, return -1
+	if([INODE_TABLE + (inodeIndex * 16) + 4] == 0) then
+		if((curUserId != 1) && (curUserId != [INODE_TABLE + (inodeIndex * 16) + 3])) then
+			[retStackAddr] = -1;
+			goto finally;
+		endif;
+	endif;
+
+	// acquire lock on file by calling acquire_inode() fn of resource manager module
+	multipush(R5, R6, R7, R8, R9, R10, R11);
+	functionNum = 4;
+	arg1 = inodeIndex;
+	arg2 = currentPID;
+	call MOD_0;
+	multipop(R5, R6, R7, R8, R9, R10, R11);
+
+	// if file open count is not -1, release lock and return -2 as file is open in some other process
+	if([FILE_STATUS_TABLE + (inodeIndex * 4) + 1] != -1) then
+		multipush(R5, R6, R7, R8, R9, R10, R11);
+		functionNum = 5;
+		arg1 = inodeIndex;
+		arg2 = currentPID;
+		call MOD_0;
+		multipop(R5, R6, R7, R8, R9, R10, R11);
+
+		[retStackAddr] = -2;
+		goto finally;
+	endif;
+
+	// file not opened in any other process
+
+	// release all disk blocks of file
+	counter = 8;
+	alias bufferNum R12;
+	alias diskBlock R13;
+	while (counter < 12) do
+		diskBlock = [INODE_TABLE + (inodeIndex * 16) + counter];
+		if(diskBlock != -1) then
+			//If the disk block is loaded into a buffer, and the DIRTY BIT is set, reset the dirty bit.
+			bufferNum = diskBlock % MAX_BUFFER;
+			//Each buffer is identified by its index in the buffer table. i.e., if buffer num is 1, its metadata is in the 1st index of buffer table
+			if(([BUFFER_TABLE + (bufferNum * 4) + 0] == diskBlock) && ([BUFFER_TABLE + (bufferNum * 4) + 1] == 1)) then
+				[BUFFER_TABLE + (bufferNum * 4) + 0] = -1;
+				[BUFFER_TABLE + (bufferNum * 4) + 1] = 0;
+			endif;
+
+			// call release block of memory manager
+			multipush(R5, R6, R7, R8, R9, R10, R11, R12, R13);
+			functionNum = 4;
+			arg1 = diskBlock;
+			arg2 = currentPID;
+			call MOD_2;
+			multipop(R5, R6, R7, R8, R9, R10, R11, R12, R13);
+		endif;
+		counter = counter + 1;
+	endwhile;
+
+	// invalidate the inode table; suffice to set filename to -1.
+	counter = 0;
+	while(counter < 16) do
+		[INODE_TABLE + (inodeIndex * 16) + counter] = -1;
+		counter = counter + 1;
+	endwhile;
+
+	// invalidate the root table; suffice to set filename to -1.
+	counter = 0;
+	while(counter < 8) do
+		[ROOT_FILE + (inodeIndex * 8) + counter] = -1;
+		counter = counter + 1;
+	endwhile;
+
+	// release lock
+	multipush(R5, R6, R7, R8, R9, R10, R11);
+	functionNum = 5;
+	arg1 = inodeIndex;
+	arg2 = currentPID;
+	call MOD_0;
+	multipop(R5, R6, R7, R8, R9, R10, R11);
+
+	// return 0
+	[retStackAddr] = 0;
+
+endif;
+
+
+finally:
+	// reset mode flag, user stack and return
+	[PROCESS_TABLE + ( currentPID * 16) + 9] = 0;
+	SP = userSP;
+	ireturn;

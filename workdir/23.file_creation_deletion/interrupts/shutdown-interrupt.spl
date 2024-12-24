@@ -1,0 +1,65 @@
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 21;
+
+alias userSP R5;
+userSP = SP;
+
+// switch to kernel stack
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+//Shutdown system call can be invoked only from the shell process of the root user. Else return -1
+
+// if not invoked from shell program, return -1
+if([SYSTEM_STATUS_TABLE + 1] != 1) then
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+	[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+	SP = userSP;
+	ireturn;
+endif;
+
+// if current user is not root user, return -1
+if([PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 3] != 1) then
+	[[PTBR + 2 * ((userSP - 1) / 512)] * 512 + ((userSP - 1) % 512)] = -1;
+	[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+	SP = userSP;
+	ireturn;
+endif;
+
+//Commit the changes made in the memory copies of the inode table (along with user table), the root file and the disk free list
+alias functionNum R1;
+alias arg1 R2;
+alias arg2 R3;
+alias arg3 R4;
+
+functionNum = 1;
+arg1 = [SYSTEM_STATUS_TABLE + 1];
+
+//commit inode
+multipush(R1, R2, R5);
+arg2 = 59;
+arg3 = 3;
+call MOD_4;
+multipop(R1, R2, R5);
+
+multipush(R1, R2, R5);
+arg2 = 60;
+arg3 = 4;
+call MOD_4;
+multipop(R1, R2, R5);
+
+// disk free list
+multipush(R1, R2, R5);
+arg2 = 61;
+arg3 = 2;
+call MOD_4;
+multipop(R1, R2, R5);
+
+// root file
+multipush(R1, R2, R5);
+arg2 = 62;
+arg3 = 5;
+call MOD_4;
+multipop(R1, R2, R5);
+
+
+halt;
